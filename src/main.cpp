@@ -1,7 +1,5 @@
-#define ENABLE_OTA_UPDATE 1
-
 #include <Arduino.h>
-#if ENABLE_OTA_UPDATE
+#ifndef DISABLE_OTA_UPDATE
 #include <ArduinoOTA.h>
 #endif
 #include <freertos/FreeRTOS.h>
@@ -77,7 +75,7 @@ void setup() {
   Logger::println("Initializing WiFi...");
   setup_wifi();
 
-#if ENABLE_OTA_UPDATE
+#ifndef DISABLE_OTA_UPDATE
   // Initialize OTA
   ArduinoOTA.setHostname("fan-controller");
 
@@ -131,7 +129,7 @@ void setup() {
 }
 
 void loop() {
-#if ENABLE_OTA_UPDATE
+#ifndef DISABLE_OTA_UPDATE
   // Handle OTA updates
   ArduinoOTA.handle();
 #endif

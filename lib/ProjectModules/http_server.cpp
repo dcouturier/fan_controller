@@ -8,8 +8,6 @@
 #include "secrets.h"
 #include "thermistor.h"
 
-#define ENABLE_OVERRIDING_FAN_SPEEDS 0
-
 WiFiServer server(80);  // Create server on port 80
 
 // Global pointers to fans
@@ -207,10 +205,11 @@ void handle_http_request() {
         html += "<div class='fan-status'>";
         StatusOr<float> temp = temps[i]->GetTemperature();
         if (temp.ok()) {
-          html += "<strong>Temp:</strong> " + String(temp.value(), 1) + " &deg;C";
+          html +=
+              "<strong>Temp:</strong> " + String(temp.value(), 1) + " &deg;C";
         } else {
-          html += "<strong>Temp:</strong> Error (" + temp.status().message() +
-                  ")";
+          html +=
+              "<strong>Temp:</strong> Error (" + temp.status().message() + ")";
         }
         html += "</div>";
       } else {
