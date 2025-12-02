@@ -24,6 +24,7 @@ PWMFan::PWMFan(uint8_t pwm_pin, uint8_t tach_pin, uint8_t channel_number,
       current_duty_cycle_(kPwmDefaultDutyCyclePercent),
       target_duty_cycle_(kPwmDefaultDutyCyclePercent),
       minimum_duty_cycle_(minimum_duty_cycle_percent),
+      override_active_(false),
       last_smooth_time_(0),
       buffer_index_(0),
       last_state_(false),
@@ -192,6 +193,10 @@ void PWMFan::UpdateDutyCycleSmoothing() {
 }
 
 Status PWMFan::SetTargetDutyCycle(float percent) {
+  if (override_active_) {
+    return OkStatus();
+  }
+
   if (percent > 100.0f) percent = 100.0f;
   if (percent < minimum_duty_cycle_) percent = minimum_duty_cycle_;
 
@@ -200,7 +205,11 @@ Status PWMFan::SetTargetDutyCycle(float percent) {
   return OkStatus();
 }
 
-Status PWMFan::SetDutyCycle(float percent) {
+Status PWMFan::SetDutyCycle(float percent, bool override) {
+  if (override_active_ && !override) {
+    return Status(StatusCode::kInternalError, "Fan is locked in override mode");
+  }
+
   if (percent > 100.0f) percent = 100.0f;
   if (percent < minimum_duty_cycle_) percent = minimum_duty_cycle_;
 
@@ -213,6 +222,15 @@ Status PWMFan::SetDutyCycle(float percent) {
 
   return OkStatus();
 }
+
+void PWMFan::LockDutyCycle() { override_active_ = true; }
+
+void PWMFan::Reset() {
+  override_active_ = false;
+  SetTargetDutyCycle(kPwmDefaultDutyCyclePercent);
+}
+
+bool PWMFan::IsOverridden() const { return override_active_; }
 
 StatusOr<int> PWMFan::GetRpm() const { return static_cast<int>(latest_rpm_); }
 

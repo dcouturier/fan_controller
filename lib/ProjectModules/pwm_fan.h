@@ -47,7 +47,16 @@ class PWMFan {
   Status SetTargetDutyCycle(float percent);
 
   // Set duty cycle as percentage (0.0 - 100.0) - immediate
-  Status SetDutyCycle(float percent);
+  Status SetDutyCycle(float percent, bool override = false);
+
+  // Lock the duty cycle to prevent automatic updates
+  void LockDutyCycle();
+
+  // Reset override and return to default speed
+  void Reset();
+
+  // Check if override is active
+  bool IsOverridden() const;
 
   // Get current RPM
   StatusOr<int> GetRpm() const;
@@ -69,6 +78,7 @@ class PWMFan {
   float current_duty_cycle_;
   float target_duty_cycle_;
   float minimum_duty_cycle_;
+  bool override_active_;
   volatile unsigned long last_smooth_time_;
 
   // Circular buffer for debouncing (used with SAMPLING method)

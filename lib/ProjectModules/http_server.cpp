@@ -116,6 +116,27 @@ void handle_http_request() {
     // Process POST data if present
 #if ENABLE_OVERRIDING_FAN_SPEEDS
     if (isPost && postData.length() > 0) {
+      // Check for resets first
+      for (int i = 1; i <= 4; i++) {
+        String resetKey = "reset_fan" + String(i) + "=";
+        if (postData.indexOf(resetKey) >= 0) {
+          PWMFan* fan = nullptr;
+          if (i == 1)
+            fan = g_fan1;
+          else if (i == 2)
+            fan = g_fan2;
+          else if (i == 3)
+            fan = g_fan3;
+          else if (i == 4)
+            fan = g_fan4;
+
+          if (fan != nullptr) {
+            fan->Reset();
+            Logger::println(String("Fan ") + i + " override reset");
+          }
+        }
+      }
+
       // Parse duty cycles for each fan
       // Expected format: fan1=50&fan2=75&fan3=25&fan4=100
       for (int i = 1; i <= 4; i++) {
@@ -140,7 +161,8 @@ void handle_http_request() {
               fan = g_fan4;
 
             if (fan != nullptr) {
-              Status status = fan->SetDutyCycle(newDuty);
+              fan->LockDutyCycle();
+              Status status = fan->SetDutyCycle(newDuty, true);
               if (status.ok()) {
                 Logger::println(String("Fan ") + i +
                                 " duty cycle set to: " + newDuty + "%");
@@ -262,26 +284,32 @@ void handle_http_request() {
     html += "<h2>Set Fan Duty Cycles</h2>";
     for (int i = 1; i <= 4; i++) {
       float currentDuty = 0.0f;
-      if (i == 1 && g_fan1) {
-        auto duty_cycle = g_fan1->GetDutyCycle();
+      bool isOverridden = false;
+      PWMFan* fan = nullptr;
+      if (i == 1) fan = g_fan1;
+      else if (i == 2) fan = g_fan2;
+      else if (i == 3) fan = g_fan3;
+      else if (i == 4) fan = g_fan4;
+
+      if (fan) {
+        auto duty_cycle = fan->GetDutyCycle();
         if (duty_cycle.ok()) currentDuty = duty_cycle.value();
-      } else if (i == 2 && g_fan2) {
-        auto duty_cycle = g_fan2->GetDutyCycle();
-        if (duty_cycle.ok()) currentDuty = duty_cycle.value();
-      } else if (i == 3 && g_fan3) {
-        auto duty_cycle = g_fan3->GetDutyCycle();
-        if (duty_cycle.ok()) currentDuty = duty_cycle.value();
-      } else if (i == 4 && g_fan4) {
-        auto duty_cycle = g_fan4->GetDutyCycle();
-        if (duty_cycle.ok()) currentDuty = duty_cycle.value();
+        isOverridden = fan->IsOverridden();
       }
 
+      html += "<div style='margin-bottom: 15px; padding: 10px; border: 1px solid #eee; border-radius: 4px;'>";
       html += "<label for='fan" + String(i) + "'>Fan " + String(i) +
               " Duty Cycle (0-100%):</label>";
       html += "<input type='number' id='fan" + String(i) + "' name='fan" +
               String(i) + "' ";
       html += "value='" + String(currentDuty, 1) +
               "' min='0' max='100' step='0.1'>";
+      
+      if (isOverridden) {
+        html += "<div style='margin-top: 5px; color: #d32f2f; font-size: 0.9em;'>Override Active</div>";
+        html += "<input type='submit' name='reset_fan" + String(i) + "' value='Reset Override' style='background: #dc3545; margin-top: 5px; padding: 5px 10px; font-size: 14px;'>";
+      }
+      html += "</div>";
     }
     html += "<input type='submit' value='Apply Settings'>";
     html += "</form>";
