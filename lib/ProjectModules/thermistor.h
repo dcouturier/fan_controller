@@ -2,9 +2,10 @@
 #define THERMISTOR_H
 
 #include <Arduino.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include "status.h"
-
 
 enum ThermistorType {
   kThermistorType10K = 0,  // 10k Ohm @ 25C, 3435K
@@ -40,8 +41,13 @@ class Thermistor {
   // Constructor performs auto-calibration to determine thermistor type
   Thermistor(uint8_t analog_pin, const String& id);
 
-  // Get temperature in Celsius
+  ~Thermistor();
+
+  // Get temperature in Celsius (immediate read)
   StatusOr<float> GetTemperature();
+
+  // Get temperature in Celsius (sampled and averaged)
+  StatusOr<float> GetSampledTemperature();
 
   // Get the detected thermistor type
   ThermistorType GetType() const { return type_; }
@@ -78,6 +84,16 @@ class Thermistor {
   bool IsValidTemperature(float temp) const {
     return temp >= kMinValidTemp && temp <= kMaxValidTemp;
   }
+
+  // Sampling task
+  TaskHandle_t sampling_task_handle_;
+  static const int kBufferSize = 10;
+  float temperature_buffer_[kBufferSize];
+  int buffer_index_;
+  int sample_count_;
+
+  static void SamplingTask(void* arg);
+  void PerformSampling();
 };
 
 #endif  // THERMISTOR_H

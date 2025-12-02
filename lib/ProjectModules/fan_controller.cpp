@@ -48,9 +48,11 @@ void FanController::ControlTask(void* parameter) {
 
 void FanController::UpdateFanSpeeds() {
   // Read temperatures from all thermistors
-  StatusOr<float> ambient_temp_result = ambient_temp_->GetTemperature();
-  StatusOr<float> coolant_in_temp_result = coolant_in_temp_->GetTemperature();
-  StatusOr<float> coolant_out_temp_result = coolant_out_temp_->GetTemperature();
+  StatusOr<float> ambient_temp_result = ambient_temp_->GetSampledTemperature();
+  StatusOr<float> coolant_in_temp_result =
+      coolant_in_temp_->GetSampledTemperature();
+  StatusOr<float> coolant_out_temp_result =
+      coolant_out_temp_->GetSampledTemperature();
 
   // Check if all temperature readings are valid
   if (!ambient_temp_result.ok()) {

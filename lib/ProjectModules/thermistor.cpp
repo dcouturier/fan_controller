@@ -8,8 +8,18 @@
 #include "logger.h"
 
 Thermistor::Thermistor(uint8_t analog_pin, const String& id)
-    : analog_pin_(analog_pin), id_(id), type_(kThermistorTypeCalibrationError) {
+    : analog_pin_(analog_pin),
+      id_(id),
+      type_(kThermistorTypeCalibrationError),
+      sampling_task_handle_(nullptr),
+      buffer_index_(0),
+      sample_count_(0) {
   pinMode(analog_pin_, INPUT);
+
+  // Initialize buffer
+  for (int i = 0; i < kBufferSize; i++) {
+    temperature_buffer_[i] = 0.0f;
+  }
 
   // Auto-calibrate: try each thermistor type and see which gives valid
   // temperature Try 10K first (most common)
@@ -19,6 +29,9 @@ Thermistor::Thermistor(uint8_t analog_pin, const String& id)
     Logger::println(String("Thermistor ") + id_ +
                     " calibrated as 10K @ 25C, temp: " + String(temp_10k, 1) +
                     "C");
+    // Start sampling task
+    xTaskCreate(SamplingTask, "Therm_Sample", 2048, this, 1,
+                &sampling_task_handle_);
     return;
   }
 
@@ -29,6 +42,9 @@ Thermistor::Thermistor(uint8_t analog_pin, const String& id)
     Logger::println(String("Thermistor ") + id_ +
                     " calibrated as 50K @ 25C, temp: " + String(temp_50k, 1) +
                     "C");
+    // Start sampling task
+    xTaskCreate(SamplingTask, "Therm_Sample", 2048, this, 1,
+                &sampling_task_handle_);
     return;
   }
 
@@ -37,6 +53,13 @@ Thermistor::Thermistor(uint8_t analog_pin, const String& id)
   Logger::println(String("ERROR: Thermistor ") + id_ +
                   " calibration failed. 10K temp: " + String(temp_10k, 1) +
                   "C, 50K temp: " + String(temp_50k, 1) + "C");
+}
+
+Thermistor::~Thermistor() {
+  if (sampling_task_handle_ != nullptr) {
+    vTaskDelete(sampling_task_handle_);
+    sampling_task_handle_ = nullptr;
+  }
 }
 
 float Thermistor::CalculateTemperature(ThermistorType type) {
@@ -80,6 +103,79 @@ float Thermistor::CalculateTemperature(ThermistorType type) {
   steinhart -= 273.15f;                          // Convert to Celsius
 
   return steinhart;
+}
+
+void Thermistor::SamplingTask(void* arg) {
+  Thermistor* t = static_cast<Thermistor*>(arg);
+  while (true) {
+    t->PerformSampling();
+    vTaskDelay(pdMS_TO_TICKS(500));  // Sample 2 times a second
+  }
+}
+
+void Thermistor::PerformSampling() {
+  if (type_ == kThermistorTypeCalibrationError) return;
+
+  float temp = CalculateTemperature(type_);
+
+  // Basic validation
+  if (!IsValidTemperature(temp)) return;
+
+  // "Wildly out of range" check
+  // Calculate average of current buffer if we have samples
+  if (sample_count_ > 10) {
+    float sum = 0;
+    int count = (sample_count_ < kBufferSize) ? sample_count_ : kBufferSize;
+    for (int i = 0; i < count; i++) {
+      sum += temperature_buffer_[i];
+    }
+    float avg = sum / count;
+
+    // If deviation is more than 5 degrees, ignore this sample
+    // This filters out noise spikes
+    if (abs(temp - avg) > 5.0f) {
+      return;
+    }
+  }
+
+  // Add to buffer
+  temperature_buffer_[buffer_index_] = temp;
+  buffer_index_ = (buffer_index_ + 1) % kBufferSize;
+  sample_count_++;
+}
+
+StatusOr<float> Thermistor::GetSampledTemperature() {
+  // Check if calibration failed
+  if (type_ == kThermistorTypeCalibrationError) {
+    return Status::CalibrationError(String("Thermistor ") + id_ +
+                                    " not calibrated");
+  }
+
+  if (sample_count_ == 0) {
+    return Status(StatusCode::kInternalError, "No temperature samples yet");
+  }
+
+  // Average last 3 valid readings
+  int max_samples = (sample_count_ < kBufferSize) ? sample_count_ : kBufferSize;
+  int samples_to_avg = 3;
+  int count = 0;
+  float sum = 0.0f;
+
+  // We need to iterate backwards from the *last written* index.
+  // buffer_index_ points to the *next* write location.
+  int current_idx = (buffer_index_ - 1 + kBufferSize) % kBufferSize;
+
+  for (int i = 0; i < samples_to_avg && i < max_samples; i++) {
+    sum += temperature_buffer_[current_idx];
+    count++;
+    current_idx = (current_idx - 1 + kBufferSize) % kBufferSize;
+  }
+
+  if (count == 0) {
+    return Status(StatusCode::kInternalError, "No valid samples to average");
+  }
+
+  return sum / count;
 }
 
 StatusOr<float> Thermistor::GetTemperature() {

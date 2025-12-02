@@ -190,15 +190,15 @@ void PerfLogger::LoggingTask(void* parameter) {
     }
 
     // Thermistors
-    StatusOr<float> t0 = logger->thermistors_[0]->GetTemperature();
+    StatusOr<float> t0 = logger->thermistors_[0]->GetSampledTemperature();
     record.temp_ambient =
         logger->EncodeTemperature(t0.ok() ? t0.value() : 0.0f);
 
-    StatusOr<float> t1 = logger->thermistors_[1]->GetTemperature();
+    StatusOr<float> t1 = logger->thermistors_[1]->GetSampledTemperature();
     record.temp_coolant_in =
         logger->EncodeTemperature(t1.ok() ? t1.value() : 0.0f);
 
-    StatusOr<float> t2 = logger->thermistors_[2]->GetTemperature();
+    StatusOr<float> t2 = logger->thermistors_[2]->GetSampledTemperature();
     record.temp_coolant_out =
         logger->EncodeTemperature(t2.ok() ? t2.value() : 0.0f);
 

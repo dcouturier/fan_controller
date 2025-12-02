@@ -3,7 +3,6 @@
 
 #include "thermistor.h"
 
-
 #define TEST_ANALOG_PIN A0
 
 void test_thermistor_initialization(void) {
