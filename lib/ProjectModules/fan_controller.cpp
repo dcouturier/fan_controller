@@ -134,10 +134,23 @@ void FanController::UpdateFanSpeeds() {
                        ? String(coolant_out_temp_result.value(), 1)
                        : "ERR";
 
-  Logger::println(String("FanController: Ambient=") + String(ambient_temp, 1) +
-                  "C, " + "CoolantIn=" + in_str + "C, " + "CoolantOut=" +
-                  out_str + "C, " + "DeltaT=" + String(delta_t, 1) + "C, " +
-                  "FanSpeed=" + String(fan_speed, 1) + "%");
+  auto f1_res = fan1_->GetDutyCycle();
+  String f1_str = f1_res.ok() ? String(f1_res.value(), 1) : "ERR";
+
+  auto f2_res = fan2_->GetDutyCycle();
+  String f2_str = f2_res.ok() ? String(f2_res.value(), 1) : "ERR";
+
+  auto f3_res = fan3_->GetDutyCycle();
+  String f3_str = f3_res.ok() ? String(f3_res.value(), 1) : "ERR";
+
+  auto pump_res = pump_->GetDutyCycle();
+  String pump_str = pump_res.ok() ? String(pump_res.value(), 1) : "ERR";
+
+  Logger::println(String("FanController: CAmb=") + String(ambient_temp, 1) +
+                  "C, " + "CIn=" + in_str + "C, " + "COut=" + out_str + "C, " +
+                  "DT=" + String(delta_t, 1) + "C, " + "F1=" + f1_str +
+                  "%, F2=" + f2_str + "%, F3=" + f3_str + "%, Pmp=" + pump_str +
+                  "%");
 }
 
 float FanController::CalculateFanSpeed(float delta_t, float water_temp) {
