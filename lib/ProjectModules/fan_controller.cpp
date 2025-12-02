@@ -108,17 +108,17 @@ void FanController::UpdateFanSpeeds() {
 
   // Apply fan speed to fans 1, 2, and 3
   Status status;
-  status = fan1_->SetDutyCycle(fan_speed);
+  status = fan1_->SetTargetDutyCycle(fan_speed);
   if (!status.ok()) {
     Logger::println(String("FanController: Fan 1 error: ") + status.message());
   }
 
-  status = fan2_->SetDutyCycle(fan_speed);
+  status = fan2_->SetTargetDutyCycle(fan_speed);
   if (!status.ok()) {
     Logger::println(String("FanController: Fan 2 error: ") + status.message());
   }
 
-  status = fan3_->SetDutyCycle(fan_speed);
+  status = fan3_->SetTargetDutyCycle(fan_speed);
   if (!status.ok()) {
     Logger::println(String("FanController: Fan 3 error: ") + status.message());
   }

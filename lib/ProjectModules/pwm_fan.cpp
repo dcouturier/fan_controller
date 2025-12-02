@@ -191,12 +191,26 @@ void PWMFan::UpdateDutyCycleSmoothing() {
   }
 }
 
-Status PWMFan::SetDutyCycle(float percent) {
+Status PWMFan::SetTargetDutyCycle(float percent) {
   if (percent > 100.0f) percent = 100.0f;
   if (percent < minimum_duty_cycle_) percent = minimum_duty_cycle_;
 
   // Set target duty cycle - smoothing will gradually approach this value
   target_duty_cycle_ = percent;
+  return OkStatus();
+}
+
+Status PWMFan::SetDutyCycle(float percent) {
+  if (percent > 100.0f) percent = 100.0f;
+  if (percent < minimum_duty_cycle_) percent = minimum_duty_cycle_;
+
+  target_duty_cycle_ = percent;
+  current_duty_cycle_ = percent;
+
+  // Apply the new duty cycle to PWM hardware immediately
+  int duty_value = (1 << kPwmResolution) * current_duty_cycle_ / 100.0f;
+  ledcWrite(channel_number_, duty_value);
+
   return OkStatus();
 }
 

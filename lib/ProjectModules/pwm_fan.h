@@ -43,7 +43,10 @@ class PWMFan {
 
   ~PWMFan();
 
-  // Set duty cycle as percentage (0.0 - 100.0)
+  // Set target duty cycle as percentage (0.0 - 100.0) - smoothed
+  Status SetTargetDutyCycle(float percent);
+
+  // Set duty cycle as percentage (0.0 - 100.0) - immediate
   Status SetDutyCycle(float percent);
 
   // Get current RPM
