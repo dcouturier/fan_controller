@@ -5,6 +5,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include <vector>
+
 #include "fan_controller.h"
 #include "http_server.h"
 #include "logger.h"
@@ -58,17 +60,19 @@ void setup() {
   fan1 = new PWMFan(FAN_1_PWM_PIN, FAN_1_TAC_PIN, 0, kRpmCalculationSampling,
                     35.0f);
   fan2 = new PWMFan(FAN_2_PWM_PIN, FAN_2_TAC_PIN, 1, kRpmCalculationSampling,
-                    35.0f);
+                    20.0f);
   fan3 = new PWMFan(FAN_3_PWM_PIN, FAN_3_TAC_PIN, 2, kRpmCalculationSampling,
-                    35.0f);
+                    250.0f);
   pump = new PWMFan(FAN_4_PWM_PIN, FAN_4_TAC_PIN, 3, kRpmCalculationSampling,
                     50.0f);  // Pump
   Logger::println("All fans initialized");
 
   // 4. Initialize FanController
   Logger::println("Initializing fan controller...");
-  fanController = new FanController(fan1, fan2, fan3, pump, ambientTemp,
-                                    coolantInTemp, coolantOutTemp);
+  std::vector<PWMFan*> fans = {fan1, fan2, fan3};
+  std::vector<PWMFan*> pumps = {pump};
+  fanController = new FanController(fans, pumps, ambientTemp, coolantInTemp,
+                                    coolantOutTemp);
   Logger::println("Fan controller initialized");
 
   // 5. Initialize WiFi

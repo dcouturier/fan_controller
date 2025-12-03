@@ -5,6 +5,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include <vector>
+
 #include "pwm_fan.h"
 #include "thermistor.h"
 
@@ -41,11 +43,12 @@
 //
 class FanController {
  public:
-  // Constructor takes references to the 4 fans and 3 thermistors
-  // Fan 4 is the pump and has special minimum speed requirements
-  FanController(PWMFan* fan1, PWMFan* fan2, PWMFan* fan3, PWMFan* pump,
-                Thermistor* ambient_temp, Thermistor* coolant_in_temp,
-                Thermistor* coolant_out_temp);
+  // Constructor takes vectors of fans and pumps
+  // Pumps have special minimum speed requirements and are not controlled by
+  // temperature
+  FanController(const std::vector<PWMFan*>& fans,
+                const std::vector<PWMFan*>& pumps, Thermistor* ambient_temp,
+                Thermistor* coolant_in_temp, Thermistor* coolant_out_temp);
 
   ~FanController();
 
@@ -57,10 +60,8 @@ class FanController {
 
  private:
   // Fan pointers
-  PWMFan* fan1_;
-  PWMFan* fan2_;
-  PWMFan* fan3_;
-  PWMFan* pump_;
+  std::vector<PWMFan*> fans_;
+  std::vector<PWMFan*> pumps_;
 
   // Thermistor pointers
   Thermistor* ambient_temp_;
@@ -75,18 +76,17 @@ class FanController {
   TaskHandle_t control_task_handle_;
 
   // Control parameters
-  static constexpr float kMinFanSpeedPercent = 35.0f;
   static constexpr float kMaxFanSpeedPercent = 100.0f;
   static constexpr float kMinDeltaT =
-      3.0f;  // DeltaT below which fans run at minimum
+      5.0f;  // DeltaT below which kDeltaTWeight has no effect
   static constexpr float kMaxDeltaT = 8.0f;  // DeltaT at which fans run at 100%
   static constexpr float kBaseWaterTemp =
-      23.0f;  // Reference water temp (comfortable baseline)
+      25.0f;  // Reference water temp (comfortable baseline)
   static constexpr float kMaxWaterTemp =
       30.0f;  // Water temp at which we add maximum boost
-  static constexpr float kDeltaTWeight = 0.7f;  // 70% weight on deltaT
+  static constexpr float kDeltaTWeight = 0.4f;  // 40% weight on deltaT
   static constexpr float kWaterTempWeight =
-      0.3f;  // 30% weight on absolute water temp
+      0.6f;  // 60% weight on absolute water temp
   static constexpr unsigned long kUpdateIntervalMs =
       1000;  // Update every second
 
@@ -95,6 +95,10 @@ class FanController {
 
   // Update fan speeds based on current temperatures
   void UpdateFanSpeeds();
+
+  // Helper to apply speed to a group of fans
+  void ApplyFanSpeed(const std::vector<PWMFan*>& fans, float intensity,
+                     const String& type_name);
 
   // Calculate target fan speed based on DeltaT and water temperature
   float CalculateFanSpeed(float delta_t, float water_temp);

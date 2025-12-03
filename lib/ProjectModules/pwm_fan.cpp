@@ -4,13 +4,16 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include "logger.h"
+
 #define kDefaultPwmFrequency 25000  // 25kHz
-#define kPwmResolution 8            // 256 gives ~0.4% granularity
+#define kPwmResolution 10           // 1024 gives ~0.1% granularity
+// Start at 50% duty cycle to ensure fan spins up
 #define kPwmDefaultDutyCyclePercent 50
 #define kTachSampleIntervalMs 1000
 #define kSmoothingPeriodMs 200  // Update duty cycle smoothing every 200ms
 #define kSmoothingStepPercent \
-  0.05f  // 10% of the difference per smoothing cycle
+  0.02f  // 2 % of the difference per smoothing cycle
 
 PWMFan::PWMFan(uint8_t pwm_pin, uint8_t tach_pin, uint8_t channel_number,
                RpmCalculationMethod method, float minimum_duty_cycle_percent)
@@ -166,14 +169,15 @@ void PWMFan::UpdateDutyCycleSmoothing() {
     last_smooth_time_ = current_time;
 
     float difference = target_duty_cycle_ - current_duty_cycle_;
-    if (abs(difference) >
+    if (fabs(difference) >
         0.001f) {  // Only update if there's a meaningful difference
       // Approach by kSmoothingStepPercent of the difference
       float step = difference * kSmoothingStepPercent;
 
-      // Ensure minimum step of 2/(2^kPwmResolution) to avoid stalling
-      float min_step = 2.0f / (1 << kPwmResolution);
-      if (abs(step) < min_step) {
+      // Ensure minimum step of 1/(2^kPwmResolution) to avoid stalling
+      // 100.0f because we are working with percentages
+      float min_step = MAX(0.1f, 100.0f / (1 << kPwmResolution));
+      if (fabs(step) < min_step) {
         step = (difference > 0) ? min_step : -min_step;
       }
 
@@ -219,6 +223,8 @@ Status PWMFan::SetDutyCycle(float percent, bool override) {
   // Apply the new duty cycle to PWM hardware immediately
   int duty_value = (1 << kPwmResolution) * current_duty_cycle_ / 100.0f;
   ledcWrite(channel_number_, duty_value);
+  Logger::println(String("PWMFan: Set duty cycle to ") +
+                  String(current_duty_cycle_, 1) + "%");
 
   return OkStatus();
 }
@@ -239,3 +245,5 @@ StatusOr<float> PWMFan::GetDutyCycle() const { return current_duty_cycle_; }
 StatusOr<float> PWMFan::GetTargetDutyCycle() const {
   return target_duty_cycle_;
 }
+
+StatusOr<float> PWMFan::GetMinDutyCycle() const { return minimum_duty_cycle_; }

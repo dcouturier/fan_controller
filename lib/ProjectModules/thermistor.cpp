@@ -155,9 +155,9 @@ StatusOr<float> Thermistor::GetSampledTemperature() {
     return Status(StatusCode::kInternalError, "No temperature samples yet");
   }
 
-  // Average last 3 valid readings
+  // Average last 5 valid readings
   int max_samples = (sample_count_ < kBufferSize) ? sample_count_ : kBufferSize;
-  int samples_to_avg = 3;
+  int samples_to_avg = 5;
   int count = 0;
   float sum = 0.0f;
 

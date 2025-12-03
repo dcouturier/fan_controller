@@ -185,7 +185,7 @@ void handle_http_request() {
     html += "h1 { color: #333; }";
     html += ".container { max-width: 800px; margin: 0 auto; }";
     html +=
-        ".fan-grid { display: grid; grid-template-columns: repeat(2, 1fr); "
+        ".fan-grid { display: grid; grid-template-columns: repeat(4, 1fr); "
         "gap: 20px; margin-bottom: 20px; }";
     html +=
         ".fan-card { background: white; padding: 15px; border-radius: 8px; "
@@ -211,7 +211,7 @@ void handle_http_request() {
         "box-shadow: 0 2px 4px rgba(0,0,0,0.1); }";
     html +=
         ".logger pre { background: #f8f9fa; padding: 10px; border-radius: 4px; "
-        "overflow-x: auto; max-height: 300px; overflow-y: auto; }";
+        "overflow-x: auto; max-height: 900px; overflow-y: auto; }";
     html += "</style></head><body>";
     html += "<div class='container'>";
     html += "<h1>Fan Controller</h1>";
@@ -286,10 +286,14 @@ void handle_http_request() {
       float currentDuty = 0.0f;
       bool isOverridden = false;
       PWMFan* fan = nullptr;
-      if (i == 1) fan = g_fan1;
-      else if (i == 2) fan = g_fan2;
-      else if (i == 3) fan = g_fan3;
-      else if (i == 4) fan = g_fan4;
+      if (i == 1)
+        fan = g_fan1;
+      else if (i == 2)
+        fan = g_fan2;
+      else if (i == 3)
+        fan = g_fan3;
+      else if (i == 4)
+        fan = g_fan4;
 
       if (fan) {
         auto duty_cycle = fan->GetDutyCycle();
@@ -297,17 +301,23 @@ void handle_http_request() {
         isOverridden = fan->IsOverridden();
       }
 
-      html += "<div style='margin-bottom: 15px; padding: 10px; border: 1px solid #eee; border-radius: 4px;'>";
+      html +=
+          "<div style='margin-bottom: 15px; padding: 10px; border: 1px solid "
+          "#eee; border-radius: 4px;'>";
       html += "<label for='fan" + String(i) + "'>Fan " + String(i) +
               " Duty Cycle (0-100%):</label>";
       html += "<input type='number' id='fan" + String(i) + "' name='fan" +
               String(i) + "' ";
       html += "value='" + String(currentDuty, 1) +
               "' min='0' max='100' step='0.1'>";
-      
+
       if (isOverridden) {
-        html += "<div style='margin-top: 5px; color: #d32f2f; font-size: 0.9em;'>Override Active</div>";
-        html += "<input type='submit' name='reset_fan" + String(i) + "' value='Reset Override' style='background: #dc3545; margin-top: 5px; padding: 5px 10px; font-size: 14px;'>";
+        html +=
+            "<div style='margin-top: 5px; color: #d32f2f; font-size: "
+            "0.9em;'>Override Active</div>";
+        html += "<input type='submit' name='reset_fan" + String(i) +
+                "' value='Reset Override' style='background: #dc3545; "
+                "margin-top: 5px; padding: 5px 10px; font-size: 14px;'>";
       }
       html += "</div>";
     }

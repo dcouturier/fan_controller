@@ -67,6 +67,9 @@ class PWMFan {
   // Get target duty cycle percentage
   StatusOr<float> GetTargetDutyCycle() const;
 
+  // Get minimum duty cycle percentage
+  StatusOr<float> GetMinDutyCycle() const;
+
  private:
   uint8_t pwm_pin_;
   uint8_t tach_pin_;

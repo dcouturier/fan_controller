@@ -2,19 +2,18 @@
 
 #include "logger.h"
 
-FanController::FanController(PWMFan* fan1, PWMFan* fan2, PWMFan* fan3,
-                             PWMFan* pump, Thermistor* ambient_temp,
+FanController::FanController(const std::vector<PWMFan*>& fans,
+                             const std::vector<PWMFan*>& pumps,
+                             Thermistor* ambient_temp,
                              Thermistor* coolant_in_temp,
                              Thermistor* coolant_out_temp)
-    : fan1_(fan1),
-      fan2_(fan2),
-      fan3_(fan3),
-      pump_(pump),
+    : fans_(fans),
+      pumps_(pumps),
       ambient_temp_(ambient_temp),
       coolant_in_temp_(coolant_in_temp),
       coolant_out_temp_(coolant_out_temp),
       current_delta_t_(0.0f),
-      target_fan_speed_(kMinFanSpeedPercent),
+      target_fan_speed_(0.0f),
       control_task_handle_(nullptr) {
   Logger::println("FanController initializing...");
 
@@ -58,18 +57,18 @@ void FanController::UpdateFanSpeeds() {
   if (!ambient_temp_result.ok()) {
     Logger::println(String("FanController: Ambient temp error: ") +
                     ambient_temp_result.status().message());
-    fan1_->SetDutyCycle(kMaxFanSpeedPercent);
-    fan2_->SetDutyCycle(kMaxFanSpeedPercent);
-    fan3_->SetDutyCycle(kMaxFanSpeedPercent);
+    for (auto fan : fans_) {
+      fan->SetDutyCycle(kMaxFanSpeedPercent);
+    }
     return;
   }
 
   // Check if at least one coolant sensor is working
   if (!coolant_in_temp_result.ok() && !coolant_out_temp_result.ok()) {
     Logger::println("FanController: Both coolant sensors failed!");
-    fan1_->SetDutyCycle(kMaxFanSpeedPercent);
-    fan2_->SetDutyCycle(kMaxFanSpeedPercent);
-    fan3_->SetDutyCycle(kMaxFanSpeedPercent);
+    for (auto fan : fans_) {
+      fan->SetDutyCycle(kMaxFanSpeedPercent);
+    }
     return;
   }
   if (!coolant_in_temp_result.ok()) {
@@ -104,29 +103,17 @@ void FanController::UpdateFanSpeeds() {
 
   current_delta_t_ = delta_t;
 
-  // Calculate target fan speed based on DeltaT and water temperature
-  float fan_speed = CalculateFanSpeed(delta_t, highest_coolant_temp);
-  target_fan_speed_ = fan_speed;
+  // Calculate target fan speed intensity (0-100%) based on DeltaT and water
+  // temperature
+  float fan_speed_intensity = CalculateFanSpeed(delta_t, highest_coolant_temp);
+  target_fan_speed_ = fan_speed_intensity;
 
-  // Apply fan speed to fans 1, 2, and 3
-  Status status;
-  status = fan1_->SetTargetDutyCycle(fan_speed);
-  if (!status.ok()) {
-    Logger::println(String("FanController: Fan 1 error: ") + status.message());
-  }
+  // Apply fan speed to fans, scaling to their individual minimums
+  ApplyFanSpeed(fans_, fan_speed_intensity, "Fan");
 
-  status = fan2_->SetTargetDutyCycle(fan_speed);
-  if (!status.ok()) {
-    Logger::println(String("FanController: Fan 2 error: ") + status.message());
-  }
-
-  status = fan3_->SetTargetDutyCycle(fan_speed);
-  if (!status.ok()) {
-    Logger::println(String("FanController: Fan 3 error: ") + status.message());
-  }
-
-  // Pump (fan 4) maintains its current speed (minimum 50% enforced by PWMFan
-  // class) We don't change the pump speed based on temperature
+  // Apply fan speed to pumps, scaling to their individual minimums
+  // Currently, pumps run at the same speed as fans.
+  ApplyFanSpeed(pumps_, fan_speed_intensity, "Pump");
 
   // Log status periodically (every update)
   String in_str = coolant_in_temp_result.ok()
@@ -136,30 +123,45 @@ void FanController::UpdateFanSpeeds() {
                        ? String(coolant_out_temp_result.value(), 1)
                        : "ERR";
 
-  auto f1_res = fan1_->GetDutyCycle();
-  String f1_str = f1_res.ok() ? String(f1_res.value(), 1) : "ERR";
+  String log_msg = String("FanController: CAmb=") + String(ambient_temp, 1) +
+                   "C, " + "CIn=" + in_str + "C, " + "COut=" + out_str + "C, " +
+                   "DT=" + String(delta_t, 1) + "C";
 
-  auto f2_res = fan2_->GetDutyCycle();
-  String f2_str = f2_res.ok() ? String(f2_res.value(), 1) : "ERR";
+  for (size_t i = 0; i < fans_.size(); i++) {
+    auto res = fans_[i]->GetDutyCycle();
+    String str = res.ok() ? String(res.value(), 1) : "ERR";
+    log_msg += ", F" + String(i + 1) + "=" + str + "%";
+  }
 
-  auto f3_res = fan3_->GetDutyCycle();
-  String f3_str = f3_res.ok() ? String(f3_res.value(), 1) : "ERR";
+  for (size_t i = 0; i < pumps_.size(); i++) {
+    auto res = pumps_[i]->GetDutyCycle();
+    String str = res.ok() ? String(res.value(), 1) : "ERR";
+    log_msg += ", Pmp" + String(i + 1) + "=" + str + "%";
+  }
 
-  auto pump_res = pump_->GetDutyCycle();
-  String pump_str = pump_res.ok() ? String(pump_res.value(), 1) : "ERR";
+  Logger::println(log_msg);
+}
 
-  Logger::println(String("FanController: CAmb=") + String(ambient_temp, 1) +
-                  "C, " + "CIn=" + in_str + "C, " + "COut=" + out_str + "C, " +
-                  "DT=" + String(delta_t, 1) + "C, " + "F1=" + f1_str +
-                  "%, F2=" + f2_str + "%, F3=" + f3_str + "%, Pmp=" + pump_str +
-                  "%");
+void FanController::ApplyFanSpeed(const std::vector<PWMFan*>& fans,
+                                  float intensity, const String& type_name) {
+  for (size_t i = 0; i < fans.size(); i++) {
+    float min_duty = 0.0f;
+    StatusOr<float> min_res = fans[i]->GetMinDutyCycle();
+    if (min_res.ok()) min_duty = min_res.value();
+
+    float target = min_duty + (intensity / 100.0f) * (100.0f - min_duty);
+    Status status = fans[i]->SetTargetDutyCycle(target);
+
+    if (!status.ok()) {
+      Logger::println(String("FanController: ") + type_name + " " +
+                      String(i + 1) + " error: " + status.message());
+    }
+  }
 }
 
 float FanController::CalculateFanSpeed(float delta_t, float water_temp) {
   // Hybrid formula: considers both deltaT and absolute water temperature
   // This ensures fans ramp up earlier on hot ambient days
-
-  float speed_range = kMaxFanSpeedPercent - kMinFanSpeedPercent;
 
   // Factor 1: DeltaT contribution (0.0 to 1.0)
   if (delta_t < kMinDeltaT) delta_t = kMinDeltaT;
@@ -176,15 +178,15 @@ float FanController::CalculateFanSpeed(float delta_t, float water_temp) {
   float combined_factor =
       (kDeltaTWeight * delta_t_factor) + (kWaterTempWeight * water_temp_factor);
 
-  // Calculate final speed
-  float speed = kMinFanSpeedPercent + (combined_factor * speed_range);
+  // Calculate final speed intensity (0-100%)
+  float speed = combined_factor * 100.0f;
 
   // Clamp to valid range
-  if (speed < kMinFanSpeedPercent) {
-    speed = kMinFanSpeedPercent;
+  if (speed < 0.0f) {
+    speed = 0.0f;
   }
-  if (speed > kMaxFanSpeedPercent) {
-    speed = kMaxFanSpeedPercent;
+  if (speed > 100.0f) {
+    speed = 100.0f;
   }
 
   return speed;
