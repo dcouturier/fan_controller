@@ -62,7 +62,7 @@ void setup() {
   fan2 = new PWMFan(FAN_2_PWM_PIN, FAN_2_TAC_PIN, 1, kRpmCalculationSampling,
                     20.0f);
   fan3 = new PWMFan(FAN_3_PWM_PIN, FAN_3_TAC_PIN, 2, kRpmCalculationSampling,
-                    250.0f);
+                    25.0f);
   pump = new PWMFan(FAN_4_PWM_PIN, FAN_4_TAC_PIN, 3, kRpmCalculationSampling,
                     50.0f);  // Pump
   Logger::println("All fans initialized");
