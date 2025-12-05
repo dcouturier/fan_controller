@@ -97,6 +97,8 @@ class PWMFan {
   // Static ISR handler for tachometer (used with DEFAULT method)
   static void tachISR(void* arg);
 
+  portMUX_TYPE spinlock_ = portMUX_INITIALIZER_UNLOCKED;
+
   // Static task function for sampling tachometer (used with SAMPLING method)
   static void samplingTask(void* arg);
 

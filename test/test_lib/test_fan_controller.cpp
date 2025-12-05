@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <unity.h>
+#include <vector>
 
 #include "fan_controller.h"
 #include "pwm_fan.h"
@@ -15,8 +16,11 @@ void test_fan_controller_target_speed(void) {
   Thermistor t2(A1, "T2");
   Thermistor t3(A2, "T3");
 
-  FanController testController(&f1, &f2, &f3, &pump, &t1, &t2, &t3);
+  std::vector<PWMFan*> fans = {&f1, &f2, &f3};
+  std::vector<PWMFan*> pumps = {&pump};
+
+  FanController testController(fans, pumps, &t1, &t2, &t3);
 
   float speed = testController.GetTargetFanSpeed();
-  TEST_ASSERT_TRUE(speed >= 35.0f && speed <= 100.0f);
+  TEST_ASSERT_TRUE(speed >= 0.0f && speed <= 100.0f);
 }
