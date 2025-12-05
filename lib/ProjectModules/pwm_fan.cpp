@@ -95,9 +95,12 @@ void IRAM_ATTR PWMFan::tachISR(void* arg) {
   PWMFan* fan = static_cast<PWMFan*>(arg);
   unsigned long current_time = millis();
 
-  // Debounce: ignore if less than 5ms since last pulse
-  if (current_time - fan->last_tach_time_ >= 5) {
+  // Debounce: ignore if less than 1ms since last pulse
+  // 1ms = 1000 Hz. For 2 pulses/rev, max 30000 RPM.
+  if (current_time - fan->last_tach_time_ >= 1) {
+    portENTER_CRITICAL_ISR(&fan->spinlock_);
     fan->tach_pulses_++;
+    portEXIT_CRITICAL_ISR(&fan->spinlock_);
     fan->last_tach_time_ = current_time;
   }
 }
@@ -124,7 +127,9 @@ void PWMFan::samplingTask(void* arg) {
 
     // Detect rising edge (LOW to HIGH transition)
     if (current_state && !fan->last_state_) {
+      portENTER_CRITICAL(&fan->spinlock_);
       fan->tach_pulses_++;
+      portEXIT_CRITICAL(&fan->spinlock_);
     }
 
     fan->last_state_ = current_state;
@@ -157,8 +162,11 @@ void PWMFan::rpmCalculationTask(void* arg) {
     }
 
     // Calculate RPM (standard PC fans emit 2 pulses per revolution)
-    int pulses = fan->tach_pulses_;
+    int pulses;
+    portENTER_CRITICAL(&fan->spinlock_);
+    pulses = fan->tach_pulses_;
     fan->tach_pulses_ = 0;
+    portEXIT_CRITICAL(&fan->spinlock_);
     fan->latest_rpm_ = (pulses / 2) * (60000 / kTachSampleIntervalMs);
   }
 }
