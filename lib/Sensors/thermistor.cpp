@@ -5,8 +5,6 @@
 #include <cmath>
 #include <cstdint>
 
-#include "logger.h"
-
 Thermistor::Thermistor(uint8_t analog_pin, const String& id)
     : analog_pin_(analog_pin),
       id_(id),
@@ -26,9 +24,9 @@ Thermistor::Thermistor(uint8_t analog_pin, const String& id)
   float temp_10k = CalculateTemperature(kThermistorType10K);
   if (IsValidTemperature(temp_10k)) {
     type_ = kThermistorType10K;
-    Logger::println(String("Thermistor ") + id_ +
-                    " calibrated as 10K @ 25C, temp: " + String(temp_10k, 1) +
-                    "C");
+    Serial.println(String("Thermistor ") + id_ +
+                   " calibrated as 10K @ 25C, temp: " + String(temp_10k, 1) +
+                   "C");
     // Start sampling task
     xTaskCreate(SamplingTask, "Therm_Sample", 2048, this, 1,
                 &sampling_task_handle_);
@@ -39,9 +37,9 @@ Thermistor::Thermistor(uint8_t analog_pin, const String& id)
   float temp_50k = CalculateTemperature(kThermistorType50K);
   if (IsValidTemperature(temp_50k)) {
     type_ = kThermistorType50K;
-    Logger::println(String("Thermistor ") + id_ +
-                    " calibrated as 50K @ 25C, temp: " + String(temp_50k, 1) +
-                    "C");
+    Serial.println(String("Thermistor ") + id_ +
+                   " calibrated as 50K @ 25C, temp: " + String(temp_50k, 1) +
+                   "C");
     // Start sampling task
     xTaskCreate(SamplingTask, "Therm_Sample", 2048, this, 1,
                 &sampling_task_handle_);
@@ -50,9 +48,9 @@ Thermistor::Thermistor(uint8_t analog_pin, const String& id)
 
   // Neither worked - calibration error
   type_ = kThermistorTypeCalibrationError;
-  Logger::println(String("ERROR: Thermistor ") + id_ +
-                  " calibration failed. 10K temp: " + String(temp_10k, 1) +
-                  "C, 50K temp: " + String(temp_50k, 1) + "C");
+  Serial.println(String("ERROR: Thermistor ") + id_ +
+                 " calibration failed. 10K temp: " + String(temp_10k, 1) +
+                 "C, 50K temp: " + String(temp_50k, 1) + "C");
 }
 
 Thermistor::~Thermistor() {
@@ -192,7 +190,7 @@ StatusOr<float> Thermistor::GetTemperature() {
   if (!IsValidTemperature(temp)) {
     String error_msg = String("Thermistor ") + id_ +
                        " temperature out of range: " + String(temp, 1) + "C";
-    Logger::println(String("ERROR: ") + error_msg);
+    Serial.println(String("ERROR: ") + error_msg);
     return Status::OutOfRange(error_msg);
   }
 
