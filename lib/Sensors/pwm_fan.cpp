@@ -4,6 +4,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include "logger.h"
+
 #define kDefaultPwmFrequency 25000  // 25kHz
 #define kPwmResolution 10           // 1024 gives ~0.1% granularity
 // Start at 50% duty cycle to ensure fan spins up
@@ -229,8 +231,8 @@ Status PWMFan::SetDutyCycle(float percent, bool override) {
   // Apply the new duty cycle to PWM hardware immediately
   int duty_value = (1 << kPwmResolution) * current_duty_cycle_ / 100.0f;
   ledcWrite(channel_number_, duty_value);
-  Serial.println(String("PWMFan: Set duty cycle to ") +
-                 String(current_duty_cycle_, 1) + "%");
+  Logger::println(String("PWMFan: Set duty cycle to ") +
+                  String(current_duty_cycle_, 1) + "%");
 
   return OkStatus();
 }
