@@ -48,7 +48,8 @@ This project implements a fan controller for a water-cooled computer system usin
 ## Project Structure
 
 *   `src/main.cpp`: Main entry point, setup, and loop.
-*   `lib/ProjectModules/`: Core logic libraries.
+*   `lib/AppModules/`: Application logic libraries.
+*   `lib/Sensors/`: Reusable sensor libraries (Fan, Thermistor).
     *   `fan_controller`: Logic for calculating fan speeds based on temperature.
     *   `pwm_fan`: Handles PWM output and tachometer reading.
     *   `thermistor`: Handles temperature reading and calibration.
