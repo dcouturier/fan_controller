@@ -1,1 +1,4 @@
 .pio/
+*.idx
+.vscode/
+compile_commands.json
