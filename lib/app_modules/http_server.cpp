@@ -22,6 +22,14 @@ Thermistor* g_temp2 = nullptr;
 Thermistor* g_temp3 = nullptr;
 
 void setup_wifi() {
+  // Check for default credentials
+  if (String(ssid) == "YOUR_SSID") {
+    Logger::println();
+    Logger::println("ERROR: Default SSID detected in secrets.h");
+    Logger::println("Please update include/secrets.h with your WiFi credentials");
+    return;
+  }
+
   // Connect to WiFi
   Logger::println();
   Logger::println(String("Connecting to WiFi: ") + ssid);
