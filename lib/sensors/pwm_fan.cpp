@@ -177,8 +177,12 @@ void PWMFan::UpdateDutyCycleSmoothing() {
     last_smooth_time_ = current_time;
 
     float difference = target_duty_cycle_ - current_duty_cycle_;
-    if (fabs(difference) >
-        0.001f) {  // Only update if there's a meaningful difference
+    if (fabs(difference) <= 0.001f) {
+      // If very close to target, snap to target.
+      current_duty_cycle_ = target_duty_cycle_;
+      int duty_value = (1 << kPwmResolution) * current_duty_cycle_ / 100.0f;
+      ledcWrite(channel_number_, duty_value);
+    } else {
       // Approach by kSmoothingStepPercent of the difference
       float step = difference * kSmoothingStepPercent;
 
