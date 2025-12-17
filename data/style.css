@@ -12,3 +12,4 @@ input[type=submit] { margin-top: 15px; padding: 10px 20px; background: #007bff; 
 input[type=submit]:hover { background: #0056b3; }
 .logger { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
 .logger pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; max-height: 900px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; }
+.chart-container { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; position: relative; height: 400px; }

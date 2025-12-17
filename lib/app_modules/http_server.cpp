@@ -117,7 +117,7 @@ void serveJSONStatus(WiFiClient& client) {
     json += "{";
     if (temps[i]) {
       json += "\"id\":\"" + temps[i]->GetId() + "\",";
-      StatusOr<float> t = temps[i]->GetTemperature();
+      StatusOr<float> t = temps[i]->GetSampledTemperature();
       if (t.ok()) {
         json += "\"temp\":\"" + String(t.value(), 1) + "\"";
       } else {
