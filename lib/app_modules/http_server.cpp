@@ -2,6 +2,7 @@
 // This file contains HTTP server functionality
 #include "http_server.h"
 
+#include <LittleFS.h>
 #include <WiFi.h>
 
 #include "logger.h"
@@ -26,7 +27,8 @@ void setup_wifi() {
   if (String(ssid) == "YOUR_SSID") {
     Logger::println();
     Logger::println("ERROR: Default SSID detected in secrets.h");
-    Logger::println("Please update include/secrets.h with your WiFi credentials");
+    Logger::println(
+        "Please update include/secrets.h with your WiFi credentials");
     return;
   }
 
@@ -71,6 +73,97 @@ void setup_http_server(PWMFan* fan1, PWMFan* fan2, PWMFan* fan3, PWMFan* fan4,
   // Initialize HTTP server
   server.begin();
   Logger::println("HTTP Server started on port 80");
+
+  if (!LittleFS.begin()) {
+    Logger::println("An Error has occurred while mounting LittleFS");
+  }
+}
+
+// Helper to serve file
+void serveFile(WiFiClient& client, const char* path, const char* contentType) {
+  if (LittleFS.exists(path)) {
+    File file = LittleFS.open(path, "r");
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: " + String(contentType));
+    client.println("Connection: close");
+    client.println();
+    while (file.available()) {
+      client.write(file.read());
+    }
+    file.close();
+  } else {
+    client.println("HTTP/1.1 404 Not Found");
+    client.println("Connection: close");
+    client.println();
+    client.println("File Not Found");
+  }
+  client.stop();
+}
+
+// Helper to serve JSON status
+void serveJSONStatus(WiFiClient& client) {
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-Type: application/json");
+  client.println("Connection: close");
+  client.println();
+
+  String json = "{";
+
+  // Thermistors
+  json += "\"thermistors\":[";
+  Thermistor* temps[3] = {g_temp1, g_temp2, g_temp3};
+  for (int i = 0; i < 3; i++) {
+    if (i > 0) json += ",";
+    json += "{";
+    if (temps[i]) {
+      json += "\"id\":\"" + temps[i]->GetId() + "\",";
+      StatusOr<float> t = temps[i]->GetTemperature();
+      if (t.ok()) {
+        json += "\"temp\":\"" + String(t.value(), 1) + "\"";
+      } else {
+        json += "\"temp\":\"ERR\"";
+      }
+    } else {
+      json += "\"id\":\"Temp " + String(i + 1) + "\",\"temp\":\"N/A\"";
+    }
+    json += "}";
+  }
+  json += "],";
+
+  // Fans
+  json += "\"fans\":[";
+  PWMFan* fans[4] = {g_fan1, g_fan2, g_fan3, g_fan4};
+  for (int i = 0; i < 4; i++) {
+    if (i > 0) json += ",";
+    json += "{";
+    if (fans[i]) {
+      StatusOr<float> d = fans[i]->GetDutyCycle();
+      StatusOr<int> r = fans[i]->GetRpm();
+      json += "\"duty\":\"" + (d.ok() ? String(d.value(), 1) : "ERR") + "\",";
+      json += "\"rpm\":\"" + (r.ok() ? String(r.value()) : "ERR") + "\"";
+    } else {
+      json += "\"duty\":\"N/A\",\"rpm\":\"N/A\"";
+    }
+    json += "}";
+  }
+  json += "],";
+
+  // Logs
+  String logs = Logger::get();
+  logs.replace("\"", "\\\"");
+  logs.replace("\n", "\\n");
+  logs.replace("\r", "");
+  json += "\"logs\":\"" + logs + "\",";
+
+#if ENABLE_OVERRIDING_FAN_SPEEDS
+  json += "\"overrideEnabled\":true";
+#else
+  json += "\"overrideEnabled\":false";
+#endif
+
+  json += "}";
+  client.print(json);
+  client.stop();
 }
 
 void handle_http_request() {
@@ -82,6 +175,7 @@ void handle_http_request() {
 
     String request = "";
     String postData = "";
+    String path = "/";
     boolean isPost = false;
     int contentLength = 0;
 
@@ -94,6 +188,12 @@ void handle_http_request() {
           request = line;
           if (line.startsWith("POST")) {
             isPost = true;
+          }
+          // Extract path
+          int space1 = line.indexOf(' ');
+          int space2 = line.indexOf(' ', space1 + 1);
+          if (space1 != -1 && space2 != -1) {
+            path = line.substring(space1 + 1, space2);
           }
         }
 
@@ -182,177 +282,34 @@ void handle_http_request() {
           }
         }
       }
+      // Redirect back to home after POST
+      client.println("HTTP/1.1 303 See Other");
+      client.println("Location: /");
+      client.println("Connection: close");
+      client.println();
+      client.stop();
+      Logger::println("Client disconnected");
+      return;
     }
 #endif
 
-    // Build HTML response
-    String html = "<html><head><style>";
-    html +=
-        "body { font-family: Arial, sans-serif; margin: 20px; background: "
-        "#f5f5f5; }";
-    html += "h1 { color: #333; }";
-    html += ".container { max-width: 800px; margin: 0 auto; }";
-    html +=
-        ".fan-grid { display: grid; grid-template-columns: repeat(4, 1fr); "
-        "gap: 20px; margin-bottom: 20px; }";
-    html +=
-        ".fan-card { background: white; padding: 15px; border-radius: 8px; "
-        "box-shadow: 0 2px 4px rgba(0,0,0,0.1); }";
-    html += ".fan-card h3 { margin-top: 0; color: #007bff; }";
-    html +=
-        ".fan-status { margin: 10px 0; padding: 10px; background: #e8f5e9; "
-        "border-radius: 4px; }";
-    html +=
-        "form { background: white; padding: 20px; border-radius: 8px; "
-        "box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }";
-    html += "label { display: block; margin-top: 10px; font-weight: bold; }";
-    html +=
-        "input[type=number] { width: 100%; padding: 8px; margin-top: 5px; "
-        "box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }";
-    html +=
-        "input[type=submit] { margin-top: 15px; padding: 10px 20px; "
-        "background: #007bff; color: white; border: none; border-radius: 4px; "
-        "cursor: pointer; font-size: 16px; }";
-    html += "input[type=submit]:hover { background: #0056b3; }";
-    html +=
-        ".logger { background: white; padding: 15px; border-radius: 8px; "
-        "box-shadow: 0 2px 4px rgba(0,0,0,0.1); }";
-    html +=
-        ".logger pre { background: #f8f9fa; padding: 10px; border-radius: 4px; "
-        "overflow-x: auto; max-height: 900px; overflow-y: auto; }";
-    html += "</style></head><body>";
-    html += "<div class='container'>";
-    html += "<h1>Fan Controller</h1>";
-
-    // Display current temperatures
-    html += "<h2>Temperatures</h2>";
-    html += "<div class='fan-grid'>";  // Reuse fan-grid for layout
-    Thermistor* temps[3] = {g_temp1, g_temp2, g_temp3};
-    for (int i = 0; i < 3; i++) {
-      html += "<div class='fan-card'>";
-      if (temps[i] != nullptr) {
-        html += "<h3>" + temps[i]->GetId() + "</h3>";
-        html += "<div class='fan-status'>";
-        StatusOr<float> temp = temps[i]->GetTemperature();
-        if (temp.ok()) {
-          html +=
-              "<strong>Temp:</strong> " + String(temp.value(), 1) + " &deg;C";
-        } else {
-          html +=
-              "<strong>Temp:</strong> Error (" + temp.status().message() + ")";
-        }
-        html += "</div>";
-      } else {
-        html += "<h3>Temp " + String(i + 1) + "</h3>";
-        html += "<div class='fan-status'>Not initialized</div>";
-      }
-      html += "</div>";
+    // Routing
+    if (path == "/" || path == "/index.html") {
+      serveFile(client, "/index.html", "text/html");
+    } else if (path == "/style.css") {
+      serveFile(client, "/style.css", "text/css");
+    } else if (path == "/script.js") {
+      serveFile(client, "/script.js", "application/javascript");
+    } else if (path == "/api/status") {
+      serveJSONStatus(client);
+    } else {
+      client.println("HTTP/1.1 404 Not Found");
+      client.println("Connection: close");
+      client.println();
+      client.println("File Not Found");
+      client.stop();
     }
-    html += "</div>";
 
-    // Display current fan status
-    html += "<h2>Fans</h2>";
-    html += "<div class='fan-grid'>";
-    PWMFan* fans[4] = {g_fan1, g_fan2, g_fan3, g_fan4};
-    for (int i = 0; i < 4; i++) {
-      html += "<div class='fan-card'>";
-      html += "<h3>Fan " + String(i + 1) + "</h3>";
-      if (fans[i] != nullptr) {
-        html += "<div class='fan-status'>";
-        {
-          StatusOr<float> duty_cycle = fans[i]->GetDutyCycle();
-          if (duty_cycle.ok()) {
-            html += "<strong>Duty Cycle:</strong> " +
-                    String(duty_cycle.value(), 1) + "%<br>";
-          } else {
-            html += "<strong>Duty Cycle:</strong> Error (" +
-                    duty_cycle.status().message() + ")<br>";
-          }
-        }
-        {
-          StatusOr<int> rpm = fans[i]->GetRpm();
-          if (rpm.ok()) {
-            html += "<strong>RPM:</strong> " + String(rpm.value());
-          } else {
-            html +=
-                "<strong>RPM:</strong> Error (" + rpm.status().message() + ")";
-          }
-        }
-        html += "</div>";
-      } else {
-        html += "<div class='fan-status'>Not initialized</div>";
-      }
-      html += "</div>";
-    }
-    html += "</div>";
-
-    // Control form
-#if ENABLE_OVERRIDING_FAN_SPEEDS
-    html += "<form method='POST' action='/'>";
-    html += "<h2>Set Fan Duty Cycles</h2>";
-    for (int i = 1; i <= 4; i++) {
-      float currentDuty = 0.0f;
-      bool isOverridden = false;
-      PWMFan* fan = nullptr;
-      if (i == 1)
-        fan = g_fan1;
-      else if (i == 2)
-        fan = g_fan2;
-      else if (i == 3)
-        fan = g_fan3;
-      else if (i == 4)
-        fan = g_fan4;
-
-      if (fan) {
-        auto duty_cycle = fan->GetDutyCycle();
-        if (duty_cycle.ok()) currentDuty = duty_cycle.value();
-        isOverridden = fan->IsOverridden();
-      }
-
-      html +=
-          "<div style='margin-bottom: 15px; padding: 10px; border: 1px solid "
-          "#eee; border-radius: 4px;'>";
-      html += "<label for='fan" + String(i) + "'>Fan " + String(i) +
-              " Duty Cycle (0-100%):</label>";
-      html += "<input type='number' id='fan" + String(i) + "' name='fan" +
-              String(i) + "' ";
-      html += "value='" + String(currentDuty, 1) +
-              "' min='0' max='100' step='0.1'>";
-
-      if (isOverridden) {
-        html +=
-            "<div style='margin-top: 5px; color: #d32f2f; font-size: "
-            "0.9em;'>Override Active</div>";
-        html += "<input type='submit' name='reset_fan" + String(i) +
-                "' value='Reset Override' style='background: #dc3545; "
-                "margin-top: 5px; padding: 5px 10px; font-size: 14px;'>";
-      }
-      html += "</div>";
-    }
-    html += "<input type='submit' value='Apply Settings'>";
-    html += "</form>";
-#endif
-
-    // Logger output
-    html += "<div class='logger'>";
-    html += "<h2>Logger Output</h2>";
-    html += "<pre>" + Logger::get() + "</pre>";
-    html += "</div>";
-
-    html += "</div></body></html>";
-
-    // Send HTTP response
-    client.println("HTTP/1.1 200 OK");
-    client.println("Content-Type: text/html; charset=utf-8");
-    client.println("Connection: close");
-    client.print("Content-Length: ");
-    client.println(html.length());
-    client.println();
-    client.print(html);
-
-    // Give the web browser time to receive the data
-    delay(1);
-    client.stop();
     Logger::println("Client disconnected");
   }
 }

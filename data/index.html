@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fan Controller</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Fan Controller</h1>
+
+        <h2>Temperatures</h2>
+        <div class="fan-grid" id="temp-grid">
+            <div class="fan-card"><h3>Loading...</h3></div>
+        </div>
+
+        <h2>Fans</h2>
+        <div class="fan-grid" id="fan-grid">
+             <div class="fan-card"><h3>Loading...</h3></div>
+        </div>
+
+        <form method='POST' action='/' id="control-form" style="display: none;">
+            <h2>Set Fan Duty Cycles</h2>
+            <!-- We will generate the form inputs statically here for simplicity, 
+                 matching the C++ loop logic but hardcoded for 4 fans since the hardware is fixed. -->
+            
+            <div style='margin-bottom: 15px; padding: 10px; border: 1px solid #eee; border-radius: 4px;'>
+                <label for='fan1'>Fan 1 Duty Cycle (0-100%):</label>
+                <input type='number' id='fan1' name='fan1' min='0' max='100' step='0.1'>
+                <input type='submit' name='reset_fan1' value='Reset Override' style='background: #dc3545; margin-top: 5px; padding: 5px 10px; font-size: 14px;'>
+            </div>
+
+            <div style='margin-bottom: 15px; padding: 10px; border: 1px solid #eee; border-radius: 4px;'>
+                <label for='fan2'>Fan 2 Duty Cycle (0-100%):</label>
+                <input type='number' id='fan2' name='fan2' min='0' max='100' step='0.1'>
+                <input type='submit' name='reset_fan2' value='Reset Override' style='background: #dc3545; margin-top: 5px; padding: 5px 10px; font-size: 14px;'>
+            </div>
+
+            <div style='margin-bottom: 15px; padding: 10px; border: 1px solid #eee; border-radius: 4px;'>
+                <label for='fan3'>Fan 3 Duty Cycle (0-100%):</label>
+                <input type='number' id='fan3' name='fan3' min='0' max='100' step='0.1'>
+                <input type='submit' name='reset_fan3' value='Reset Override' style='background: #dc3545; margin-top: 5px; padding: 5px 10px; font-size: 14px;'>
+            </div>
+
+            <div style='margin-bottom: 15px; padding: 10px; border: 1px solid #eee; border-radius: 4px;'>
+                <label for='fan4'>Fan 4 Duty Cycle (0-100%):</label>
+                <input type='number' id='fan4' name='fan4' min='0' max='100' step='0.1'>
+                <input type='submit' name='reset_fan4' value='Reset Override' style='background: #dc3545; margin-top: 5px; padding: 5px 10px; font-size: 14px;'>
+            </div>
+
+            <input type='submit' value='Apply Settings'>
+        </form>
+
+        <div class="logger">
+            <h2>Logger Output</h2>
+            <pre id="logger-output">Loading logs...</pre>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
