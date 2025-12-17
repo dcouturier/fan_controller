@@ -1,6 +1,8 @@
 let tempChart;
 let fanChart;
-const maxDataPoints = 900; // 15 minutes history
+const maxDataPoints = 90; // Max points to display on graph
+const maxRawRecords = 900; // 15 minutes history @ 1s interval
+let rawHistory = []; // Buffer for raw 1s data
 
 function initCharts() {
     // Temperature Chart
@@ -79,99 +81,170 @@ function initCharts() {
     });
 }
 
-function updateCharts(thermistors, fans) {
-    const now = new Date().toLocaleTimeString();
+function toggleFanDatasets() {
+    if (!fanChart) return;
     
-    // --- Update Temp Chart ---
-    if (tempChart) {
-        // Add label
-        tempChart.data.labels.push(now);
-        if (tempChart.data.labels.length > maxDataPoints) {
-            tempChart.data.labels.shift();
-        }
+    const showRpm = document.getElementById('show-rpm').checked;
+    const showDuty = document.getElementById('show-duty').checked;
 
-        // Update thermistor datasets
-        thermistors.forEach((t, index) => {
-            let dataset = tempChart.data.datasets.find(ds => ds.label === t.id);
+    fanChart.data.datasets.forEach(ds => {
+        if (ds.label.includes('RPM')) {
+            ds.hidden = !showRpm;
+        } else if (ds.label.includes('Duty')) {
+            ds.hidden = !showDuty;
+        }
+    });
+    fanChart.update();
+}
+
+function refreshCharts(labels, tData, fData) {
+    if (tempChart) {
+        tempChart.data.labels = labels;
+        Object.keys(tData).forEach((id, index) => {
+            let dataset = tempChart.data.datasets.find(ds => ds.label === id);
             if (!dataset) {
                 const colors = ['#FF6384', '#36A2EB', '#FFCE56'];
                 dataset = {
-                    label: t.id,
+                    label: id,
                     data: [],
                     borderColor: colors[index % colors.length],
                     backgroundColor: colors[index % colors.length],
                     fill: false,
-                    tension: 0.1
+                    tension: 0.4,
+                    pointRadius: 0,
+                    pointHoverRadius: 5
                 };
                 tempChart.data.datasets.push(dataset);
             }
-            const tempVal = parseFloat(t.temp);
-            dataset.data.push(isNaN(tempVal) ? null : tempVal);
-            if (dataset.data.length > maxDataPoints) dataset.data.shift();
+            dataset.data = tData[id];
         });
         tempChart.update();
     }
-
-    // --- Update Fan Chart ---
+    
     if (fanChart) {
-        // Add label
-        fanChart.data.labels.push(now);
-        if (fanChart.data.labels.length > maxDataPoints) {
-            fanChart.data.labels.shift();
-        }
-
-        // Update fan datasets
-        fans.forEach((f, index) => {
-            const colors = ['#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF'];
-            
-            // RPM
-            const labelRpm = `Fan ${index + 1} RPM`;
-            let datasetRpm = fanChart.data.datasets.find(ds => ds.label === labelRpm);
-            if (!datasetRpm) {
-                datasetRpm = {
-                    label: labelRpm,
+        fanChart.data.labels = labels;
+        Object.keys(fData).forEach((label) => {
+             let dataset = fanChart.data.datasets.find(ds => ds.label === label);
+             if (!dataset) {
+                 const isRpm = label.includes('RPM');
+                 const fanIndex = parseInt(label.match(/\d+/)[0]) - 1;
+                 const colors = ['#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF'];
+                 dataset = {
+                    label: label,
                     data: [],
-                    borderColor: colors[index % colors.length],
-                    backgroundColor: colors[index % colors.length],
+                    borderColor: colors[fanIndex % colors.length],
+                    backgroundColor: colors[fanIndex % colors.length],
                     fill: false,
-                    tension: 0.1,
-                    yAxisID: 'y'
+                    tension: 0.4,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    yAxisID: isRpm ? 'y' : 'y1',
+                    hidden: isRpm ? !document.getElementById('show-rpm').checked : !document.getElementById('show-duty').checked
                 };
-                fanChart.data.datasets.push(datasetRpm);
-            }
-            const rpmVal = parseInt(f.rpm);
-            datasetRpm.data.push(isNaN(rpmVal) ? null : rpmVal);
-            if (datasetRpm.data.length > maxDataPoints) datasetRpm.data.shift();
-
-            // Duty Cycle
-            const labelDuty = `Fan ${index + 1} Duty`;
-            let datasetDuty = fanChart.data.datasets.find(ds => ds.label === labelDuty);
-            if (!datasetDuty) {
-                datasetDuty = {
-                    label: labelDuty,
-                    data: [],
-                    borderColor: colors[index % colors.length],
-                    backgroundColor: colors[index % colors.length],
-                    fill: false,
-                    tension: 0.1,
-                    borderDash: [5, 5],
-                    yAxisID: 'y1'
-                };
-                fanChart.data.datasets.push(datasetDuty);
-            }
-            const dutyVal = parseFloat(f.duty);
-            datasetDuty.data.push(isNaN(dutyVal) ? null : dutyVal);
-            if (datasetDuty.data.length > maxDataPoints) datasetDuty.data.shift();
+                if (!isRpm) dataset.borderDash = [5, 5];
+                fanChart.data.datasets.push(dataset);
+             }
+             dataset.data = fData[label];
         });
         fanChart.update();
     }
+}
+
+function processHistory() {
+    const count = rawHistory.length;
+    const target = maxDataPoints;
+    
+    const labels = [];
+    const tData = {}; 
+    const fData = {}; 
+    
+    if (count > 0) {
+        rawHistory[0].thermistors.forEach(t => tData[t.id] = []);
+        rawHistory[0].fans.forEach((f, i) => {
+            fData[`Fan ${i+1} RPM`] = [];
+            fData[`Fan ${i+1} Duty`] = [];
+        });
+    }
+    
+    if (count <= target) {
+        rawHistory.forEach(record => {
+            labels.push(record.timestamp);
+            record.thermistors.forEach(t => tData[t.id].push(parseFloat(t.temp)));
+            record.fans.forEach((f, i) => {
+                fData[`Fan ${i+1} RPM`].push(parseInt(f.rpm));
+                fData[`Fan ${i+1} Duty`].push(parseFloat(f.duty));
+            });
+        });
+    } else {
+        // Weighted resampling (Kernel Smoothing) to prevent flicker
+        const ratio = (count - 1) / (target - 1);
+        const radius = ratio; // Window radius
+
+        for (let i = 0; i < target; i++) {
+            const center = i * ratio;
+            
+            // Determine range of input indices that contribute to this output point
+            const start = Math.ceil(center - radius);
+            const end = Math.floor(center + radius);
+            
+            const safeStart = Math.max(0, start);
+            const safeEnd = Math.min(count - 1, end);
+            
+            let totalWeight = 0;
+            const tSums = {};
+            const fSums = {};
+            
+            // Initialize sums
+            Object.keys(tData).forEach(k => tSums[k] = 0);
+            Object.keys(fData).forEach(k => fSums[k] = 0);
+
+            // Accumulate weighted values
+            for (let j = safeStart; j <= safeEnd; j++) {
+                const weight = 1 - Math.abs(j - center) / radius;
+                if (weight <= 0) continue;
+                
+                totalWeight += weight;
+                
+                const record = rawHistory[j];
+                
+                record.thermistors.forEach(t => {
+                    tSums[t.id] += parseFloat(t.temp) * weight;
+                });
+                
+                record.fans.forEach((f, idx) => {
+                    fSums[`Fan ${idx+1} RPM`] += parseInt(f.rpm) * weight;
+                    fSums[`Fan ${idx+1} Duty`] += parseFloat(f.duty) * weight;
+                });
+            }
+            
+            // Normalize and store
+            if (totalWeight > 0) {
+                const nearestIndex = Math.round(center);
+                labels.push(rawHistory[Math.min(count-1, nearestIndex)].timestamp);
+                
+                Object.keys(tSums).forEach(id => {
+                    tData[id].push((tSums[id] / totalWeight).toFixed(1));
+                });
+                
+                Object.keys(fSums).forEach(label => {
+                    if (label.includes('RPM')) {
+                        fData[label].push(Math.round(fSums[label] / totalWeight));
+                    } else {
+                        fData[label].push((fSums[label] / totalWeight).toFixed(1));
+                    }
+                });
+            }
+        }
+    }
+    
+    refreshCharts(labels, tData, fData);
 }
 
 function updateStatus() {
     fetch('/api/status')
         .then(response => response.json())
         .then(data => {
-            // Update Temperatures
+            // Update Text UI immediately
             const tempGrid = document.getElementById('temp-grid');
             tempGrid.innerHTML = '';
             data.thermistors.forEach(t => {
@@ -184,10 +257,6 @@ function updateStatus() {
                     </div>`;
             });
 
-            // Update Chart
-            updateCharts(data.thermistors, data.fans);
-
-            // Update Fans
             const fanGrid = document.getElementById('fan-grid');
             fanGrid.innerHTML = '';
             data.fans.forEach((f, index) => {
@@ -201,22 +270,25 @@ function updateStatus() {
                     </div>`;
             });
 
-            // Update Logger
             document.getElementById('logger-output').textContent = data.logs;
 
-            // Show/Hide Control Form
             const form = document.getElementById('control-form');
             if (data.overrideEnabled) {
                 form.style.display = 'block';
             } else {
                 form.style.display = 'none';
             }
+
+            // Add to history and update charts
+            const now = new Date().toLocaleTimeString();
+            data.timestamp = now;
             
-            // Update Form Values (optional, but good for sync)
-            // This assumes the form inputs have ids like 'fan1', 'fan2', etc.
-            // and we want to show the current duty cycle as the default value.
-            // However, the user might be typing, so updating the input value might be annoying.
-            // Let's skip updating the input values automatically for now.
+            rawHistory.push(data);
+            if (rawHistory.length > maxRawRecords) {
+                rawHistory.shift();
+            }
+            
+            processHistory();
         })
         .catch(console.error);
 }
