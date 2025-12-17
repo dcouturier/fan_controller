@@ -87,7 +87,7 @@ class Thermistor {
 
   // Sampling task
   TaskHandle_t sampling_task_handle_;
-  static const int kBufferSize = 10;
+  static const int kBufferSize = 20;
   float temperature_buffer_[kBufferSize];
   int buffer_index_;
   int sample_count_;
