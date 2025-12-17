@@ -1,4 +1,6 @@
 #include "logger.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 namespace Logger {
 
@@ -7,17 +9,25 @@ static String buffer[LOG_CAPACITY];
 static int head = 0;   // index of oldest entry
 static int tail = 0;   // index to write next
 static int count = 0;  // number of stored entries
+static SemaphoreHandle_t logMutex = NULL;
 
 // internal push
 static void pushLine(const String& line) {
-  Serial.println(line);
-  buffer[tail] = line;
-  tail = (tail + 1) % LOG_CAPACITY;
-  if (count < LOG_CAPACITY) {
-    ++count;
-  } else {
-    // buffer full, advance head to overwrite oldest
-    head = tail;
+  if (logMutex == NULL) {
+    logMutex = xSemaphoreCreateMutex();
+  }
+  
+  if (xSemaphoreTake(logMutex, portMAX_DELAY) == pdTRUE) {
+    Serial.println(line);
+    buffer[tail] = line;
+    tail = (tail + 1) % LOG_CAPACITY;
+    if (count < LOG_CAPACITY) {
+      ++count;
+    } else {
+      // buffer full, advance head to overwrite oldest
+      head = tail;
+    }
+    xSemaphoreGive(logMutex);
   }
 }
 
@@ -46,22 +56,36 @@ void printf(const char* format, ...) {
 // Return all buffered lines concatenated with '\n' between lines.
 String get() {
   String out;
-  out.reserve(256);  // small reserve to avoid too many reallocs
-  for (int i = 0; i < count; ++i) {
-    int index = (head + i) % LOG_CAPACITY;
-    out += buffer[index];
-    if (i + 1 < count) out += '\n';
+  if (logMutex == NULL) {
+    return out;
+  }
+
+  if (xSemaphoreTake(logMutex, portMAX_DELAY) == pdTRUE) {
+    out.reserve(256);  // small reserve to avoid too many reallocs
+    for (int i = 0; i < count; ++i) {
+      int index = (head + i) % LOG_CAPACITY;
+      out += buffer[index];
+      if (i + 1 < count) out += '\n';
+    }
+    xSemaphoreGive(logMutex);
   }
   return out;
 }
 
 void clear() {
-  // Clear strings to free memory
-  for (int i = 0; i < count; ++i) {
-    int index = (head + i) % LOG_CAPACITY;
-    buffer[index].remove(0);
+  if (logMutex == NULL) {
+    return;
   }
-  head = tail = count = 0;
+
+  if (xSemaphoreTake(logMutex, portMAX_DELAY) == pdTRUE) {
+    // Clear strings to free memory
+    for (int i = 0; i < count; ++i) {
+      int index = (head + i) % LOG_CAPACITY;
+      buffer[index].remove(0);
+    }
+    head = tail = count = 0;
+    xSemaphoreGive(logMutex);
+  }
 }
 
 }  // namespace Logger

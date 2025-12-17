@@ -52,6 +52,9 @@ class FanController {
 
   ~FanController();
 
+  // Start the control task
+  void Start();
+
   // Get the current DeltaT (temperature differential)
   float GetDeltaT() const { return current_delta_t_; }
 

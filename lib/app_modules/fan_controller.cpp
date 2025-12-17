@@ -15,8 +15,11 @@ FanController::FanController(const std::vector<PWMFan*>& fans,
       current_delta_t_(0.0f),
       target_fan_speed_(0.0f),
       control_task_handle_(nullptr) {
-  Logger::println("FanController initializing...");
+  Logger::println("FanController initialized");
+}
 
+void FanController::Start() {
+  Logger::println("Starting FanController task...");
   // Create FreeRTOS task for fan control (runs every second)
   xTaskCreate(ControlTask,           // Task function
               "Fan_Control_Task",    // Task name
@@ -25,8 +28,6 @@ FanController::FanController(const std::vector<PWMFan*>& fans,
               1,                     // Priority
               &control_task_handle_  // Task handle
   );
-
-  Logger::println("FanController initialized");
 }
 
 FanController::~FanController() {

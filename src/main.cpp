@@ -78,6 +78,7 @@ void setup() {
   std::vector<PWMFan*> pumps = {pump};
   fanController = new FanController(fans, pumps, ambientTemp, coolantInTemp,
                                     coolantOutTemp);
+  fanController->Start();
   Logger::println("Fan controller initialized");
 
   // 5. Initialize WiFi
