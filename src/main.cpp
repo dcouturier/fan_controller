@@ -22,7 +22,8 @@
 // WARNING: D8 (GPIO 8) and D9 (GPIO 9) are strapping pins on ESP32-C3.
 // D8 is used to select the boot mode (Download Boot if LOW, SPI Boot if HIGH).
 // D9 is used for internal voltage selection and should be pulled up.
-// Ensure your fan circuitry does not pull these pins to an invalid state during boot!
+// Ensure your fan circuitry does not pull these pins to an invalid state during
+// boot!
 #define FAN_3_PWM_PIN D8
 #define FAN_3_TAC_PIN D7
 #define FAN_4_PWM_PIN D10
@@ -62,7 +63,7 @@ void setup() {
   // Fans 1-3: 35% minimum, Fan 4 (pump): 50% minimum
   Logger::println("Initializing fans...");
   fan1 = new PWMFan(FAN_1_PWM_PIN, FAN_1_TAC_PIN, 0, kRpmCalculationSampling,
-                    35.0f);
+                    40.0f);
   fan2 = new PWMFan(FAN_2_PWM_PIN, FAN_2_TAC_PIN, 1, kRpmCalculationSampling,
                     20.0f);
   fan3 = new PWMFan(FAN_3_PWM_PIN, FAN_3_TAC_PIN, 2, kRpmCalculationSampling,
